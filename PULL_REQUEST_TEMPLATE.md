@@ -1,4 +1,4 @@
-<!--- Provide a general summary of your changes in the title. -->
+<!--- Provide a general summary of your changes in the title starting with a gitmoji https://gitmoji.carloscuesta.me/. -->
 
 ## 📝 Summary
 <!--- Use this section to describe what has changed. Link this PR to relevant Trello cards. If your PR is still a work in progress, create PR as draft. -->
@@ -22,3 +22,4 @@ question about how this fits PR in with other modules/features? -->
 - [ ] I have added relevant labels.
 - [ ] (_after creating the PR_) I have added a new card to the Trello board and attached this PR.
 - [ ] (_user facing changes_) I have checked that this PR supports [WCAG 2.0](https://uu.difi.no/krav-og-regelverk/wcag-20-standarden)
+- [ ] I have added a suitable [gitmoji](https://gitmoji.carloscuesta.me/) to the title <!-- Checkout gitmoji-cli https://github.com/carloscuesta/gitmoji-cli for easy lookups -->
