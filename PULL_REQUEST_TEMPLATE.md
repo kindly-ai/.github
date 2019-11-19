@@ -1,6 +1,6 @@
 <!--- Provide a general summary of your changes in the title. -->
 
-## 📝 What's changed
+## 📝 Summary
 <!--- Use this section to describe what has changed. Link this PR to relevant Trello cards. If your PR is still a work in progress, create PR as draft. -->
 
 ## ✨ Screenshots/GIF's
