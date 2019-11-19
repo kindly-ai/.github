@@ -8,7 +8,7 @@
 
 ## 💁‍♂️ Reviewer instructions
 <!-- Don't forget to assign a reviewer to the PR! Use this section if:
-- There is something the reviewer needs to know before make their review
+- There is something the reviewer needs to know before reviewing
 - There is something in particular you want the reviewer to review. Maybe you have a
 question about how this fits PR in with other modules/features? -->
 
