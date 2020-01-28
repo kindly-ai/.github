@@ -3,7 +3,7 @@
 ## 📝 Summary
 <!--- Use this section to describe what has changed. Link this PR to relevant Trello cards. If your PR is still a work in progress, create PR as draft. -->
 
-## ✨ Screenshots/GIF's
+## ✨ Screenshots/GIFs
 <!-- If the PR introduces a new feature or enhancement of existing feature, you can add screenshots or GIF's showcasing the changes (with e.g. https://getkap.co/). -->
 
 ## 💁‍♂️ Reviewer instructions
