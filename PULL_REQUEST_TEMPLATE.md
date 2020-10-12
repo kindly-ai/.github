@@ -18,8 +18,9 @@ question about how this fits PR in with other modules/features? -->
 ## ☑ Checklist
 <!--- Before you submit the PR, go over this checklist and make sure you can tick off all the boxes. Otherwise create PR as draft -->
 
-- [ ] I have assigned a reviewer.
-- [ ] I have added relevant labels.
-- [ ] (_after creating the PR_) I have added a new card to the Trello board and attached this PR.
-- [ ] (_user facing changes_) I have checked that this PR supports [WCAG 2.0](https://uu.difi.no/krav-og-regelverk/wcag-20-standarden)
 - [ ] I have added a suitable [gitmoji](https://gitmoji.carloscuesta.me/) to the title <!-- Checkout gitmoji-cli https://github.com/carloscuesta/gitmoji-cli for easy lookups -->
+- [ ] I have linked this PR to a Trello card.
+- [ ] I have assigned a reviewer.
+- [ ] (_optional_) I have added relevant labels.
+- [ ] (_optional_) I have checked that this PR supports [WCAG 2.0](https://uu.difi.no/krav-og-regelverk/wcag-20-standarden)
+- [ ] (_optional_) I plan to write about this PR to #product / Canny / Help Center / Docs
