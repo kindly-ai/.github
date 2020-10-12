@@ -23,4 +23,4 @@ question about how this fits PR in with other modules/features? -->
 - [ ] I have assigned a reviewer.
 - [ ] (_optional_) I have added relevant labels.
 - [ ] (_optional_) I have checked that this PR supports [WCAG 2.0](https://uu.difi.no/krav-og-regelverk/wcag-20-standarden)
-- [ ] (_optional_) I plan to communicate this change to #product / Help Center / Docs
+- [ ] (_optional_) I plan to write about this PR to #product / Canny / Help Center / Docs
