@@ -13,7 +13,7 @@
 question about how this fits PR in with other modules/features? -->
 
 ## 🚀 Deployment steps
-<!-- If PR is dependent on other PR, or e.g. requires a new enviornment variable, then list it here -->
+<!-- If PR is dependent on other PR, or e.g. requires a new environment variable, then list it here -->
 
 ## ☑ Checklist
 <!--- Before you submit the PR, go over this checklist and make sure you can tick off all the boxes. Otherwise create PR as draft -->
