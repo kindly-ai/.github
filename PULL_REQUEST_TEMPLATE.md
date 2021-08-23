@@ -22,6 +22,7 @@ question about how this PR fits in with other modules/features? -->
 - [ ] I have linked this PR to a Trello card.
 - [ ] I have assigned a reviewer.
 - [ ] (_optional_) I have added relevant labels.
-- [ ] (_optional_) I have checked that this PR supports [WCAG 2.0](https://uu.difi.no/krav-og-regelverk/wcag-20-standarden)
 - [ ] (_optional_) I plan to write about this PR to #product / Canny / Help Center / Docs
+- [ ] (_optional_) I have added mixpanel events for this feature.
+- [ ] (_optional_) I have checked that this PR supports [WCAG 2.0](https://uu.difi.no/krav-og-regelverk/wcag-20-standarden)
 - [ ] (_optional_) I have added a [happy path test](https://en.wikipedia.org/wiki/Happy_path), when appropriate. <!-- To get started writing tests, please ask reviewer for help -->
