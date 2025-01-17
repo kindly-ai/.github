@@ -18,7 +18,7 @@ question about how this PR fits in with other modules/features? -->
 <!--- Before you submit the PR, go over this checklist and make sure you can tick off all the boxes. Otherwise, create a draft PR. -->
 
 - [ ] I have added a suitable [gitmoji](https://gitmoji.carloscuesta.me/) to the title <!-- Check out gitmoji-cli https://github.com/carloscuesta/gitmoji-cli for easy lookups -->
-- [ ] I have linked this PR to a Linear Card.
+- [ ] I have linked this PR to a Linear Card: fixes .
 - [ ] I have assigned a reviewer.
 - [ ] (_optional_) I plan to write about this PR in #product / Canny / Help Center / Docs / [API Changelog](https://docs.kindly.ai/api/changelog)
 - [ ] (_optional_) I have added prometheus or mixpanel events for this feature.
