@@ -1,0 +1,161 @@
+name: "(Reusable) GitHub Release to Linear"
+
+on:
+  workflow_call:
+    secrets:
+      linear-api-key:
+        description: 'The Linear API key.'
+        required: true
+
+jobs:
+  update-linear-tickets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get previous release tag
+        id: previous_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 2
+            });
+
+            if (releases.data.length < 2) {
+              core.info('No previous release found.');
+              return;
+            }
+            const previousRelease = releases.data[1];
+            core.setOutput('tag_name', previousRelease.tag_name);
+
+      - name: Get PR numbers in release
+        id: pr_numbers
+        if: steps.previous_release.outputs.tag_name
+        run: |
+          prev_tag=${{ steps.previous_release.outputs.tag_name }}
+          current_tag=${{ github.ref_name }}
+          pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | jq -sR 'split("\n") | map(select(length > 0)) | map(tonumber)')
+          echo "numbers=${pr_numbers_json}" >> $GITHUB_OUTPUT
+
+      - name: Find and update Linear tickets
+        if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
+            const linearApiKey = '${{ secrets.linear-api-key }}';
+
+            const PLATFORM_TICKET_PATTERN = /PLAT-\d+/g;
+            const CORE_TICKET_PATTERN = /CORE-\d+/g;
+            const TEAM_RELEASED_STATE_MAP = {
+              platform: '0b5181e6-b7a0-4b4b-b441-ada23e377579', // Team Platform "🚀 Released" status ID
+              core: '5f5062ff-23a2-48dc-8541-dea69385f943',     // Team Core "🚀 Released" status ID
+            };
+
+            if (!prNumbers || prNumbers.length === 0) {
+              core.info('No PRs found in this release.');
+              return;
+            }
+
+            async function linearQuery(query, variables) {
+              const response = await fetch('https://api.linear.app/graphql', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': linearApiKey,
+                },
+                body: JSON.stringify({ query, variables }),
+              });
+              const result = await response.json();
+              if (result.errors) {
+                throw new Error(`Linear API Error: ${JSON.stringify(result.errors)}`);
+              }
+              return result.data;
+            }
+
+            const platformTicketIDs = new Set();
+            const coreTicketIDs = new Set();
+
+            const prPromises = prNumbers.map(prNumber =>
+              github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              })
+            );
+
+            const prResults = await Promise.allSettled(prPromises);
+
+            prResults.forEach((result, index) => {
+              if (result.status === 'fulfilled') {
+                const pr = result.value.data;
+                const content = `${pr.title} ${pr.body || ''} ${pr.head.ref}`;
+                let match;
+                while ((match = PLATFORM_TICKET_PATTERN.exec(content)) !== null) {
+                  platformTicketIDs.add(match[0]);
+                }
+                while ((match = CORE_TICKET_PATTERN.exec(content)) !== null) {
+                  coreTicketIDs.add(match[0]);
+                }
+              } else {
+                const prNumber = prNumbers[index];
+                core.warning(`Could not fetch PR #${prNumber}. It might have been deleted. Error: ${result.reason.message}`);
+              }
+            });
+
+            if (platformTicketIDs.size === 0 && coreTicketIDs.size === 0) {
+              core.info('No Linear tickets for Team Platform or Team Core found in release PRs.');
+              return;
+            }
+            
+            async function updateTickets(ticketIDs, stateId, teamName) {
+              if (ticketIDs.size === 0) {
+                return;
+              }
+              core.info(`Found ${teamName} tickets: ${Array.from(ticketIDs).join(', ')}`);
+
+              const updatePromises = Array.from(ticketIDs).map(ticketId => {
+                core.info(`Updating ${teamName} ticket ${ticketId} to state ${stateId}`);
+                const updateQuery = `
+                  mutation UpdateIssueStatus($issueId: String!, $stateId: String!) {
+                    issueUpdate(id: $issueId, input: { stateId: $stateId }) {
+                      success
+                      issue {
+                        id
+                        state {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }`;
+                return linearQuery(updateQuery, { issueId: ticketId, stateId: stateId });
+              });
+
+              const updateResults = await Promise.allSettled(updatePromises);
+
+              updateResults.forEach((result, index) => {
+                const ticketId = Array.from(ticketIDs)[index];
+                if (result.status === 'fulfilled') {
+                  const updateResult = result.value;
+                  if (updateResult.issueUpdate.success) {
+                    core.info(`Successfully updated ticket ${ticketId} to state "${updateResult.issueUpdate.issue.state.name}".`);
+                  } else {
+                    core.error(`Failed to update ticket ${ticketId}, success was false.`);
+                  }
+                } else {
+                  core.error(`Error processing ticket ${ticketId}: ${result.reason.message}`);
+                }
+              });
+            }
+            
+            await Promise.all([
+              updateTickets(platformTicketIDs, TEAM_RELEASED_STATE_MAP.platform, 'Team Platform'),
+              updateTickets(coreTicketIDs, TEAM_RELEASED_STATE_MAP.core, 'Team Core')
+            ]); 
