@@ -40,7 +40,7 @@ jobs:
         run: |
           prev_tag=${{ steps.previous_release.outputs.tag_name }}
           current_tag=${{ github.ref_name }}
-          pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | jq -sR 'split("\n") | map(select(length > 0)) | map(tonumber)')
+          pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | jq -scR 'split("\n") | map(select(length > 0)) | map(tonumber)')
           echo "numbers=${pr_numbers_json}" >> $GITHUB_OUTPUT
 
       - name: Find and update Linear tickets
