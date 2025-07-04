@@ -40,7 +40,7 @@ jobs:
         run: |
           prev_tag=${{ steps.previous_release.outputs.tag_name }}
           current_tag=${{ github.ref_name }}
-          pr_numbers_json=$(git log $prev_tag..$current_tag --merges --first-parent --pretty=%s | grep -oE 'Merge pull request #[0-9]+' | grep -oE '[0-9]+' | jq -sR 'split("\n") | map(select(length > 0)) | map(tonumber)')
+          pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | jq -sR 'split("\n") | map(select(length > 0)) | map(tonumber)')
           echo "numbers=${pr_numbers_json}" >> $GITHUB_OUTPUT
 
       - name: Find and update Linear tickets
@@ -119,34 +119,43 @@ jobs:
                 return;
               }
               core.info(`Found ${teamName} tickets: ${Array.from(ticketIDs).join(', ')}`);
-              for (const ticketId of ticketIDs) {
-                try {
-                  core.info(`Updating ${teamName} ticket ${ticketId} to state ${stateId}`);
-                  const updateQuery = `
-                    mutation UpdateIssueStatus($issueId: String!, $stateId: String!) {
-                      issueUpdate(id: $issueId, input: { stateId: $stateId }) {
-                        success
-                        issue {
+
+              const updatePromises = Array.from(ticketIDs).map(ticketId => {
+                core.info(`Updating ${teamName} ticket ${ticketId} to state ${stateId}`);
+                const updateQuery = `
+                  mutation UpdateIssueStatus($issueId: String!, $stateId: String!) {
+                    issueUpdate(id: $issueId, input: { stateId: $stateId }) {
+                      success
+                      issue {
+                        id
+                        state {
                           id
-                          state {
-                            id
-                            name
-                          }
+                          name
                         }
                       }
-                    }`;
-                  const updateResult = await linearQuery(updateQuery, { issueId: ticketId, stateId: stateId });
-            
+                    }
+                  }`;
+                return linearQuery(updateQuery, { issueId: ticketId, stateId: stateId });
+              });
+
+              const updateResults = await Promise.allSettled(updatePromises);
+
+              updateResults.forEach((result, index) => {
+                const ticketId = Array.from(ticketIDs)[index];
+                if (result.status === 'fulfilled') {
+                  const updateResult = result.value;
                   if (updateResult.issueUpdate.success) {
                     core.info(`Successfully updated ticket ${ticketId} to state "${updateResult.issueUpdate.issue.state.name}".`);
                   } else {
                     core.error(`Failed to update ticket ${ticketId}, success was false.`);
                   }
-                } catch (error) {
-                  core.error(`Error processing ticket ${ticketId}: ${error.message}`);
+                } else {
+                  core.error(`Error processing ticket ${ticketId}: ${result.reason.message}`);
                 }
-              }
+              });
             }
             
-            await updateTickets(platformTicketIDs, TEAM_RELEASED_STATE_MAP.platform, 'Team Platform');
-            await updateTickets(coreTicketIDs, TEAM_RELEASED_STATE_MAP.core, 'Team Core'); 
+            await Promise.all([
+              updateTickets(platformTicketIDs, TEAM_RELEASED_STATE_MAP.platform, 'Team Platform'),
+              updateTickets(coreTicketIDs, TEAM_RELEASED_STATE_MAP.core, 'Team Core')
+            ]); 
