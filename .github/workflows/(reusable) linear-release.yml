@@ -96,11 +96,11 @@ jobs:
               if (result.status === 'fulfilled') {
                 const pr = result.value.data;
                 const content = `${pr.title} ${pr.body || ''} ${pr.head.ref}`;
-                let match;
-                while ((match = PLATFORM_TICKET_PATTERN.exec(content)) !== null) {
+
+                for (const match of content.matchAll(PLATFORM_TICKET_PATTERN)) {
                   platformTicketIDs.add(match[0]);
                 }
-                while ((match = CORE_TICKET_PATTERN.exec(content)) !== null) {
+                for (const match of content.matchAll(CORE_TICKET_PATTERN)) {
                   coreTicketIDs.add(match[0]);
                 }
               } else {
