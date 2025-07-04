@@ -82,14 +82,19 @@ jobs:
             const platformTicketIDs = new Set();
             const coreTicketIDs = new Set();
 
-            for (const prNumber of prNumbers) {
-              try {
-                const { data: pr } = await github.rest.pulls.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: prNumber,
-                });
+            const prPromises = prNumbers.map(prNumber =>
+              github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              })
+            );
 
+            const prResults = await Promise.allSettled(prPromises);
+
+            prResults.forEach((result, index) => {
+              if (result.status === 'fulfilled') {
+                const pr = result.value.data;
                 const content = `${pr.title} ${pr.body || ''} ${pr.head.ref}`;
                 let match;
                 while ((match = PLATFORM_TICKET_PATTERN.exec(content)) !== null) {
@@ -98,10 +103,11 @@ jobs:
                 while ((match = CORE_TICKET_PATTERN.exec(content)) !== null) {
                   coreTicketIDs.add(match[0]);
                 }
-              } catch (error) {
-                  core.warning(`Could not fetch PR #${prNumber}. It might have been deleted. Error: ${error.message}`);
+              } else {
+                const prNumber = prNumbers[index];
+                core.warning(`Could not fetch PR #${prNumber}. It might have been deleted. Error: ${result.reason.message}`);
               }
-            }
+            });
 
             if (platformTicketIDs.size === 0 && coreTicketIDs.size === 0) {
               core.info('No Linear tickets for Team Platform or Team Core found in release PRs.');
