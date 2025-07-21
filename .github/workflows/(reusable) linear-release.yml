@@ -53,6 +53,7 @@ jobs:
 
             const PLATFORM_TICKET_PATTERN = /PLAT-\d+/g;
             const CORE_TICKET_PATTERN = /CORE-\d+/g;
+            const REQUIRED_STATE_IDS = ['1ee53a4e-8e7b-487b-a023-08d09729da98']; // "🔀 Merged" state ID from Team Platform
             const TEAM_RELEASED_STATE_MAP = {
               platform: '0b5181e6-b7a0-4b4b-b441-ada23e377579', // Team Platform "🚀 Released" status ID
               core: '5f5062ff-23a2-48dc-8541-dea69385f943',     // Team Core "🚀 Released" status ID
@@ -79,8 +80,8 @@ jobs:
               return result.data;
             }
 
-            const platformTicketIDs = new Set();
-            const coreTicketIDs = new Set();
+            const platformTicketIdentifiers = new Set();
+            const coreTicketIdentifiers = new Set();
 
             const prPromises = prNumbers.map(prNumber =>
               github.rest.pulls.get({
@@ -98,10 +99,10 @@ jobs:
                 const content = `${pr.title} ${pr.body || ''} ${pr.head.ref}`;
 
                 for (const match of content.matchAll(PLATFORM_TICKET_PATTERN)) {
-                  platformTicketIDs.add(match[0]);
+                  platformTicketIdentifiers.add(match[0]);
                 }
                 for (const match of content.matchAll(CORE_TICKET_PATTERN)) {
-                  coreTicketIDs.add(match[0]);
+                  coreTicketIdentifiers.add(match[0]);
                 }
               } else {
                 const prNumber = prNumbers[index];
@@ -109,19 +110,40 @@ jobs:
               }
             });
 
-            if (platformTicketIDs.size === 0 && coreTicketIDs.size === 0) {
+            if (platformTicketIdentifiers.size === 0 && coreTicketIdentifiers.size === 0) {
               core.info('No Linear tickets for Team Platform or Team Core found in release PRs.');
               return;
             }
             
-            async function updateTickets(ticketIDs, stateId, teamName) {
-              if (ticketIDs.size === 0) {
+            async function updateTickets(ticketIdentifiers, stateId, teamName) {
+              if (ticketIdentifiers.size === 0) {
                 return;
               }
-              core.info(`Found ${teamName} tickets: ${Array.from(ticketIDs).join(', ')}`);
+              core.info(`Found ${teamName} tickets: ${Array.from(ticketIdentifiers).join(', ')}`);
 
-              const updatePromises = Array.from(ticketIDs).map(ticketId => {
-                core.info(`Updating ${teamName} ticket ${ticketId} to state ${stateId}`);
+              const getIssuesQuery = `
+                query GetIssuesByState($stateIds: [ID!]) {
+                  issues(filter: { state: { id: { in: $stateIds } } }) {
+                    nodes {
+                      id
+                    }
+                  }
+                }`;
+
+              const issuesResponse = await linearQuery(getIssuesQuery, { stateIds: REQUIRED_STATE_IDS });
+
+              const issuesInRequiredState = new Set(issuesResponse.issues.nodes.map(issue => issue.id));
+              const ticketsToUpdate = Array.from(ticketIdentifiers).filter(ticketId => issuesInRequiredState.has(ticketId));
+
+              if (ticketsToUpdate.length === 0) {
+                core.info(`No ${teamName} tickets were in the required state to be moved.`);
+                return;
+              }
+
+              core.info(`Found ${teamName} tickets to update: ${ticketsToUpdate.join(', ')}`);
+
+              const updatePromises = ticketsToUpdate.map(ticketIdentifier => {
+                core.info(`Updating ${teamName} ticket ${ticketIdentifier} to state ${stateId}`);
                 const updateQuery = `
                   mutation UpdateIssueStatus($issueId: String!, $stateId: String!) {
                     issueUpdate(id: $issueId, input: { stateId: $stateId }) {
@@ -135,27 +157,27 @@ jobs:
                       }
                     }
                   }`;
-                return linearQuery(updateQuery, { issueId: ticketId, stateId: stateId });
+                return linearQuery(updateQuery, { issueId: ticketIdentifier, stateId: stateId });
               });
 
               const updateResults = await Promise.allSettled(updatePromises);
 
               updateResults.forEach((result, index) => {
-                const ticketId = Array.from(ticketIDs)[index];
+                const ticketIdentifier = ticketsToUpdate[index];
                 if (result.status === 'fulfilled') {
                   const updateResult = result.value;
                   if (updateResult.issueUpdate.success) {
-                    core.info(`Successfully updated ticket ${ticketId} to state "${updateResult.issueUpdate.issue.state.name}".`);
+                    core.info(`Successfully updated ticket ${ticketIdentifier} to state "${updateResult.issueUpdate.issue.state.name}".`);
                   } else {
-                    core.error(`Failed to update ticket ${ticketId}, success was false.`);
+                    core.error(`Failed to update ticket ${ticketIdentifier}, success was false.`);
                   }
                 } else {
-                  core.error(`Error processing ticket ${ticketId}: ${result.reason.message}`);
+                  core.error(`Error processing ticket ${ticketIdentifier}: ${result.reason.message}`);
                 }
               });
             }
             
             await Promise.all([
-              updateTickets(platformTicketIDs, TEAM_RELEASED_STATE_MAP.platform, 'Team Platform'),
-              updateTickets(coreTicketIDs, TEAM_RELEASED_STATE_MAP.core, 'Team Core')
+              updateTickets(platformTicketIdentifiers, TEAM_RELEASED_STATE_MAP.platform, 'Team Platform'),
+              updateTickets(coreTicketIdentifiers, TEAM_RELEASED_STATE_MAP.core, 'Team Core')
             ]); 
