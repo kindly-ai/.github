@@ -1,4 +1,4 @@
-name: "(Reusable) GitHub Release to Linear"
+name: '(Reusable) GitHub Release to Linear'
 
 on:
   workflow_call:
@@ -53,10 +53,15 @@ jobs:
 
             const PLATFORM_TICKET_PATTERN = /PLAT-\d+/g;
             const CORE_TICKET_PATTERN = /CORE-\d+/g;
-            const REQUIRED_STATE_IDS = ['1ee53a4e-8e7b-487b-a023-08d09729da98']; // "🔀 Merged" state ID from Team Platform
-            const TEAM_RELEASED_STATE_MAP = {
-              platform: '0b5181e6-b7a0-4b4b-b441-ada23e377579', // Team Platform "🚀 Released" status ID
-              core: '5f5062ff-23a2-48dc-8541-dea69385f943',     // Team Core "🚀 Released" status ID
+            const TEAMS_STATES_MAP = {
+              platform: {
+                merged: '1ee53a4e-8e7b-487b-a023-08d09729da98', // "🔀 Merged" state ID from Team Platform
+                released: '0b5181e6-b7a0-4b4b-b441-ada23e377579', // Team Platform "🚀 Released" status ID
+              },
+              core: {
+                merged: '1ee53a4e-8e7b-487b-a023-08d09729da98', // TBD
+                released: '5f5062ff-23a2-48dc-8541-dea69385f943', // Team Core "🚀 Released" status ID
+              },
             };
 
             if (!prNumbers || prNumbers.length === 0) {
@@ -114,7 +119,7 @@ jobs:
               core.info('No Linear tickets for Team Platform or Team Core found in release PRs.');
               return;
             }
-            
+
             async function updateTickets(ticketIdentifiers, stateId, teamName) {
               if (ticketIdentifiers.size === 0) {
                 return;
@@ -123,14 +128,14 @@ jobs:
 
               const getIssuesQuery = `
                 query GetIssuesByState($stateIds: [ID!]) {
-                  issues(filter: { state: { id: { in: $stateIds } } }) {
+                  issues(first: 250, filter: { state: { id: { in: $stateIds } } }) {
                     nodes {
                       identifier
                     }
                   }
                 }`;
 
-              const issuesResponse = await linearQuery(getIssuesQuery, { stateIds: REQUIRED_STATE_IDS });
+              const issuesResponse = await linearQuery(getIssuesQuery, { stateIds: [TEAMS_STATES_MAP.platform.merged] });
 
               const issuesInRequiredState = new Set(issuesResponse.issues.nodes.map(issue => issue.identifier));
               const ticketsToUpdate = Array.from(ticketIdentifiers).filter(ticketIdentifier => issuesInRequiredState.has(ticketIdentifier));
@@ -176,8 +181,8 @@ jobs:
                 }
               });
             }
-            
+
             await Promise.all([
-              updateTickets(platformTicketIdentifiers, TEAM_RELEASED_STATE_MAP.platform, 'Team Platform'),
-              updateTickets(coreTicketIdentifiers, TEAM_RELEASED_STATE_MAP.core, 'Team Core')
-            ]); 
+              updateTickets(platformTicketIdentifiers, TEAMS_STATES_MAP.platform.released, 'Team Platform'),
+              updateTickets(coreTicketIdentifiers, TEAMS_STATES_MAP.core.released, 'Team Core')
+            ]);
