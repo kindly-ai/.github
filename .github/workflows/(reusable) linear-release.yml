@@ -125,15 +125,15 @@ jobs:
                 query GetIssuesByState($stateIds: [ID!]) {
                   issues(filter: { state: { id: { in: $stateIds } } }) {
                     nodes {
-                      id
+                      identifier
                     }
                   }
                 }`;
 
               const issuesResponse = await linearQuery(getIssuesQuery, { stateIds: REQUIRED_STATE_IDS });
 
-              const issuesInRequiredState = new Set(issuesResponse.issues.nodes.map(issue => issue.id));
-              const ticketsToUpdate = Array.from(ticketIdentifiers).filter(ticketId => issuesInRequiredState.has(ticketId));
+              const issuesInRequiredState = new Set(issuesResponse.issues.nodes.map(issue => issue.identifier));
+              const ticketsToUpdate = Array.from(ticketIdentifiers).filter(ticketIdentifier => issuesInRequiredState.has(ticketIdentifier));
 
               if (ticketsToUpdate.length === 0) {
                 core.info(`No ${teamName} tickets were in the required state to be moved.`);
