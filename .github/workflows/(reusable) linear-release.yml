@@ -145,7 +145,7 @@ jobs:
 
               core.info(`Found ${teamName} tickets to update: ${ticketsToUpdate.join(', ')}`);
 
-              const updatePromises = ticketsToUpdate.map(ticketIdentifier => {
+              const updatePromises = ticketsToUpdate.map(async ticketIdentifier => {
                 core.info(`Updating ${teamName} ticket ${ticketIdentifier} to state ${stateId}`);
                 const updateQuery = `
                   mutation UpdateIssueStatus($issueId: String!, $stateId: String!) {
@@ -160,7 +160,29 @@ jobs:
                       }
                     }
                   }`;
-                return linearQuery(updateQuery, { issueId: ticketIdentifier, stateId: stateId });
+                
+                const result = await linearQuery(updateQuery, { issueId: ticketIdentifier, stateId: stateId });
+
+                if (result.issueUpdate?.success) {
+                  const commentQuery = `
+                    mutation CreateComment($issueId: String!, $body: String!) {
+                      commentCreate(input: { issueId: $issueId, body: $body, createOnSyncedSlackThread: true }) {
+                        success
+                      }
+                    }`;
+                  try {
+                    await linearQuery(commentQuery, { 
+                      issueId: ticketIdentifier, 
+                      body: "This task has been now released to the public 🚀" 
+                    });
+                    core.info(`Successfully commented on synced Slack thread for ticket ${ticketIdentifier}.`);
+                  } catch (e) {
+                    // Linear API throws if no synced thread exists when createOnSyncedSlackThread is true
+                    core.info(`Skipped commenting on ${ticketIdentifier} (likely no synced Slack thread): ${e.message}`);
+                  }
+                }
+
+                return result;
               });
 
               const updateResults = await Promise.allSettled(updatePromises);
@@ -169,7 +191,7 @@ jobs:
                 const ticketIdentifier = ticketsToUpdate[index];
                 if (result.status === 'fulfilled') {
                   const updateResult = result.value;
-                  if (updateResult.issueUpdate.success) {
+                  if (updateResult.issueUpdate?.success) {
                     core.info(`Successfully updated ticket ${ticketIdentifier} to state "${updateResult.issueUpdate.issue.state.name}".`);
                   } else {
                     core.error(`Failed to update ticket ${ticketIdentifier}, success was false.`);
