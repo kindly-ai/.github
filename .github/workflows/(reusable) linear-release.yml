@@ -43,7 +43,7 @@ jobs:
           pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | jq -scR 'split("\n") | map(select(length > 0)) | map(tonumber)')
           echo "numbers=${pr_numbers_json}" >> $GITHUB_OUTPUT
 
-      - name: Find and update Linear tickets
+      - name: Comment on Linear tickets in synced Slack threads
         if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
         uses: actions/github-script@v7
         with:
@@ -51,16 +51,11 @@ jobs:
             const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
             const linearApiKey = '${{ secrets.linear-api-key }}';
 
-            const PLATFORM_TICKET_PATTERN = /PLAT-\d+/g;
-            const CORE_TICKET_PATTERN = /CORE-\d+/g;
-            const REQUIRED_STATE_IDS = [
-              '1ee53a4e-8e7b-487b-a023-08d09729da98', // "🔀 Merged" state ID from Team Platform
+            const TICKET_PATTERN = /(PLAT|CORE)-\d+/g;
+            const MERGED_STATE_IDS = [
+              'b00c5e2d-f7b0-4134-9181-35169a0ce16b', // "🔀 Merged" state ID from Team Platform
               '51f1e757-1321-49fd-822b-8cb0e0703cec', // "🔀 Merged" state ID from Team Core
             ];
-            const TEAM_RELEASED_STATE_MAP = {
-              platform: '0b5181e6-b7a0-4b4b-b441-ada23e377579', // Team Platform "🚀 Released" status ID
-              core: '5f5062ff-23a2-48dc-8541-dea69385f943',     // Team Core "🚀 Released" status ID
-            };
 
             if (!prNumbers || prNumbers.length === 0) {
               core.info('No PRs found in this release.');
@@ -83,8 +78,7 @@ jobs:
               return result.data;
             }
 
-            const platformTicketIdentifiers = new Set();
-            const coreTicketIdentifiers = new Set();
+            const ticketIdentifiers = new Set();
 
             const prPromises = prNumbers.map(prNumber =>
               github.rest.pulls.get({
@@ -101,11 +95,8 @@ jobs:
                 const pr = result.value.data;
                 const content = `${pr.title} ${pr.body || ''} ${pr.head.ref}`;
 
-                for (const match of content.matchAll(PLATFORM_TICKET_PATTERN)) {
-                  platformTicketIdentifiers.add(match[0]);
-                }
-                for (const match of content.matchAll(CORE_TICKET_PATTERN)) {
-                  coreTicketIdentifiers.add(match[0]);
+                for (const match of content.matchAll(TICKET_PATTERN)) {
+                  ticketIdentifiers.add(match[0]);
                 }
               } else {
                 const prNumber = prNumbers[index];
@@ -113,96 +104,51 @@ jobs:
               }
             });
 
-            if (platformTicketIdentifiers.size === 0 && coreTicketIdentifiers.size === 0) {
-              core.info('No Linear tickets for Team Platform or Team Core found in release PRs.');
+            if (ticketIdentifiers.size === 0) {
+              core.info('No Linear tickets found in release PRs.');
               return;
             }
-            
-            async function updateTickets(ticketIdentifiers, stateId, teamName) {
-              if (ticketIdentifiers.size === 0) {
-                return;
-              }
-              core.info(`Found ${teamName} tickets: ${Array.from(ticketIdentifiers).join(', ')}`);
 
-              const getIssuesQuery = `
-                query GetIssuesByState($stateIds: [ID!]) {
-                  issues(filter: { state: { id: { in: $stateIds } } }) {
-                    nodes {
-                      identifier
-                    }
+            core.info(`Found tickets: ${Array.from(ticketIdentifiers).join(', ')}`);
+
+            // Get tickets that are in "Merged" state
+            const getIssuesQuery = `
+              query GetIssuesByState($stateIds: [ID!]) {
+                issues(filter: { state: { id: { in: $stateIds } } }) {
+                  nodes {
+                    identifier
+                  }
+                }
+              }`;
+
+            const issuesResponse = await linearQuery(getIssuesQuery, { stateIds: MERGED_STATE_IDS });
+            const issuesInMergedState = new Set(issuesResponse.issues.nodes.map(issue => issue.identifier));
+            const ticketsToComment = Array.from(ticketIdentifiers).filter(id => issuesInMergedState.has(id));
+
+            if (ticketsToComment.length === 0) {
+              core.info('No tickets in "Merged" state to comment on.');
+              return;
+            }
+
+            core.info(`Tickets in "Merged" state to comment on: ${ticketsToComment.join(', ')}`);
+
+            const commentPromises = ticketsToComment.map(async ticketIdentifier => {
+              const commentQuery = `
+                mutation CreateComment($issueId: String!, $body: String!) {
+                  commentCreate(input: { issueId: $issueId, body: $body, createOnSyncedSlackThread: true }) {
+                    success
                   }
                 }`;
-
-              const issuesResponse = await linearQuery(getIssuesQuery, { stateIds: REQUIRED_STATE_IDS });
-
-              const issuesInRequiredState = new Set(issuesResponse.issues.nodes.map(issue => issue.identifier));
-              const ticketsToUpdate = Array.from(ticketIdentifiers).filter(ticketIdentifier => issuesInRequiredState.has(ticketIdentifier));
-
-              if (ticketsToUpdate.length === 0) {
-                core.info(`No ${teamName} tickets were in the required state to be moved.`);
-                return;
+              try {
+                await linearQuery(commentQuery, { 
+                  issueId: ticketIdentifier, 
+                  body: "Hey team, this task has been now released to the public 🚀" 
+                });
+                core.info(`Successfully commented on synced Slack thread for ticket ${ticketIdentifier}.`);
+              } catch (e) {
+                // Linear API throws if no synced thread exists when createOnSyncedSlackThread is true
+                core.info(`Skipped commenting on ${ticketIdentifier} (likely no synced Slack thread): ${e.message}`);
               }
+            });
 
-              core.info(`Found ${teamName} tickets to update: ${ticketsToUpdate.join(', ')}`);
-
-              const updatePromises = ticketsToUpdate.map(async ticketIdentifier => {
-                core.info(`Updating ${teamName} ticket ${ticketIdentifier} to state ${stateId}`);
-                const updateQuery = `
-                  mutation UpdateIssueStatus($issueId: String!, $stateId: String!) {
-                    issueUpdate(id: $issueId, input: { stateId: $stateId }) {
-                      success
-                      issue {
-                        id
-                        state {
-                          id
-                          name
-                        }
-                      }
-                    }
-                  }`;
-                
-                const result = await linearQuery(updateQuery, { issueId: ticketIdentifier, stateId: stateId });
-
-                if (result.issueUpdate?.success) {
-                  const commentQuery = `
-                    mutation CreateComment($issueId: String!, $body: String!) {
-                      commentCreate(input: { issueId: $issueId, body: $body, createOnSyncedSlackThread: true }) {
-                        success
-                      }
-                    }`;
-                  try {
-                    await linearQuery(commentQuery, { 
-                      issueId: ticketIdentifier, 
-                      body: "This task has been now released to the public 🚀" 
-                    });
-                    core.info(`Successfully commented on synced Slack thread for ticket ${ticketIdentifier}.`);
-                  } catch (e) {
-                    // Linear API throws if no synced thread exists when createOnSyncedSlackThread is true
-                    core.info(`Skipped commenting on ${ticketIdentifier} (likely no synced Slack thread): ${e.message}`);
-                  }
-                }
-
-                return result;
-              });
-
-              const updateResults = await Promise.allSettled(updatePromises);
-
-              updateResults.forEach((result, index) => {
-                const ticketIdentifier = ticketsToUpdate[index];
-                if (result.status === 'fulfilled') {
-                  const updateResult = result.value;
-                  if (updateResult.issueUpdate?.success) {
-                    core.info(`Successfully updated ticket ${ticketIdentifier} to state "${updateResult.issueUpdate.issue.state.name}".`);
-                  } else {
-                    core.error(`Failed to update ticket ${ticketIdentifier}, success was false.`);
-                  }
-                } else {
-                  core.error(`Error processing ticket ${ticketIdentifier}: ${result.reason.message}`);
-                }
-              });
-            }
-            
-            await Promise.all([
-              updateTickets(platformTicketIdentifiers, TEAM_RELEASED_STATE_MAP.platform, 'Team Platform'),
-              updateTickets(coreTicketIdentifiers, TEAM_RELEASED_STATE_MAP.core, 'Team Core')
-            ]); 
+            await Promise.allSettled(commentPromises); 
