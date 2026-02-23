@@ -51,10 +51,11 @@ jobs:
             const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
             const linearApiKey = '${{ secrets.linear-api-key }}';
 
-            const TICKET_PATTERN = /(PLAT|CORE)-\d+/g;
+            const TICKET_PATTERN = /(PLAT|CORE|INTEL)-\d+/g;
             const MERGED_STATE_IDS = [
-              'b00c5e2d-f7b0-4134-9181-35169a0ce16b', // "🔀 Merged" state ID from Team Platform
-              '51f1e757-1321-49fd-822b-8cb0e0703cec', // "🔀 Merged" state ID from Team Core
+              'b00c5e2d-f7b0-4134-9181-35169a0ce16b', // "🔀 Merged" state ID from Team Canvas
+              '1c81a071-5649-4722-820d-6fb1aa5a05b6', // "🔀 Merged" state ID from Team Intel
+              '51f1e757-1321-49fd-822b-8cb0e0703cec', // "🔀 Merged" state ID from Team Engine
             ];
 
             if (!prNumbers || prNumbers.length === 0) {
