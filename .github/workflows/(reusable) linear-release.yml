@@ -51,7 +51,7 @@ jobs:
             const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
             const linearApiKey = '${{ secrets.linear-api-key }}';
 
-            const TICKET_PATTERN = /(PLAT|CORE|INTEL|ATLAS)-\d+/g;
+            const TICKET_PATTERN = /(CAN|CORE|INTEL|ATLAS)-\d+/g;
             const MERGED_STATE_IDS = [
               'b00c5e2d-f7b0-4134-9181-35169a0ce16b', // "🔀 Merged" state ID from Team Canvas
               '1c81a071-5649-4722-820d-6fb1aa5a05b6', // "🔀 Merged" state ID from Team Intel
