@@ -51,7 +51,7 @@ jobs:
             const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const labelName = 'released';
+            const labelName = '🚀 released';
 
             try {
               await github.rest.issues.getLabel({ owner, repo, name: labelName });
