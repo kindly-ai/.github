@@ -45,6 +45,7 @@ jobs:
 
       - name: Label released PRs
         if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
+        continue-on-error: true
         uses: actions/github-script@v8
         with:
           script: |
