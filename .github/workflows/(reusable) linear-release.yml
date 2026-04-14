@@ -43,6 +43,39 @@ jobs:
           pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | jq -scR 'split("\n") | map(select(length > 0)) | map(tonumber)')
           echo "numbers=${pr_numbers_json}" >> $GITHUB_OUTPUT
 
+      - name: Label released PRs
+        if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
+        continue-on-error: true
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const labelName = '🚀 released';
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: labelName });
+            } catch (e) {
+              if (e.status === 404) {
+                await github.rest.issues.createLabel({ owner, repo, name: labelName, color: '6f42c1', description: 'Included in a production release' });
+                core.info(`Created "${labelName}" label.`);
+              } else {
+                throw e;
+              }
+            }
+
+            const results = await Promise.allSettled(
+              prNumbers.map(pr =>
+                github.rest.issues.addLabels({ owner, repo, issue_number: pr, labels: [labelName] })
+              )
+            );
+
+            results.forEach((r, i) => {
+              if (r.status === 'fulfilled') core.info(`Labeled PR #${prNumbers[i]}`);
+              else core.warning(`Failed to label PR #${prNumbers[i]}: ${r.reason.message}`);
+            });
+
       - name: Comment on Linear tickets in synced Slack threads
         if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
         uses: actions/github-script@v8
