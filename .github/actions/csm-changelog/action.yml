@@ -1,0 +1,24 @@
+name: CSM Changelog
+description: Summarize released PRs for CSMs and post the digest to Slack.
+
+inputs:
+  pr-numbers:
+    description: JSON array of released pull request numbers.
+    required: true
+  anthropic-model:
+    description: Anthropic model used to decide and summarize CSM-visible release notes.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Summarize released PRs and post CSM changelog to Slack
+      uses: actions/github-script@v8
+      env:
+        ANTHROPIC_MODEL: ${{ inputs.anthropic-model }}
+        CSM_CHANGELOG_SCRIPT: ${{ github.action_path }}/csm-changelog.js
+        PR_NUMBERS: ${{ inputs.pr-numbers }}
+      with:
+        script: |
+          const run = require(process.env.CSM_CHANGELOG_SCRIPT);
+          await run({ github, context, core });
