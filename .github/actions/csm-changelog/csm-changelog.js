@@ -269,12 +269,7 @@ Format for Slack mrkdwn. Include PR links inline where relevant using the provid
       ].join(' ')
     : null;
 
-  const text = [
-    header,
-    '',
-    digestBody,
-    ...(failureWarning ? ['', failureWarning] : []),
-  ].join('\n\n');
+  const text = [header, digestBody, ...(failureWarning ? [failureWarning] : [])].join('\n\n');
 
   const response = await fetch(slackWebhookUrl, {
     method: 'POST',
