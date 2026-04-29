@@ -51,10 +51,11 @@ jobs:
       - name: Get PR numbers in release
         id: pr_numbers
         if: steps.previous_release.outputs.tag_name
+        env:
+          PREV_TAG: ${{ steps.previous_release.outputs.tag_name }}
+          CURRENT_TAG: ${{ github.ref_name }}
         run: |
-          prev_tag=${{ steps.previous_release.outputs.tag_name }}
-          current_tag=${{ github.ref_name }}
-          pr_numbers=$(git log "$prev_tag..$current_tag" --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || true)
+          pr_numbers=$(git log "$PREV_TAG..$CURRENT_TAG" --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || true)
           pr_numbers_json=$(printf '%s\n' "$pr_numbers" | jq -scR 'split("\n") | map(select(length > 0)) | map(tonumber) | unique')
           echo "numbers=${pr_numbers_json}" >> "$GITHUB_OUTPUT"
 
