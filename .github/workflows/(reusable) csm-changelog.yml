@@ -60,7 +60,7 @@ jobs:
             const currentPublishedAtTime = new Date(currentPublishedAt).getTime();
             const previousRelease = releases
               .filter(release => release.tag_name !== currentTag)
-              .filter(release => !release.draft && release.published_at)
+              .filter(release => !release.draft && !release.prerelease && release.published_at)
               .filter(release => new Date(release.published_at).getTime() < currentPublishedAtTime)
               .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())[0];
 
