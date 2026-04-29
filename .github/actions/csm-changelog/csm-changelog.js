@@ -134,9 +134,15 @@ Format for Slack mrkdwn. Include PR links inline where relevant using the provid
     ].join('\n');
   }
 
+  function getReleaseReference() {
+    const name = context.payload.release?.name || context.ref.replace('refs/tags/', '');
+    const url = context.payload.release?.html_url;
+
+    return { name, url };
+  }
+
   async function composeDigest(items) {
-    const releaseName = context.payload.release?.name || context.ref.replace('refs/tags/', '');
-    const releaseUrl = context.payload.release?.html_url;
+    const { name: releaseName, url: releaseUrl } = getReleaseReference();
     const releaseReference = releaseUrl ? `${releaseName} (${releaseUrl})` : releaseName;
     const userMessage = [
       `repo: ${context.repo.owner}/${context.repo.repo}`,
@@ -248,8 +254,7 @@ Format for Slack mrkdwn. Include PR links inline where relevant using the provid
     return;
   }
 
-  const releaseName = context.payload.release?.name || context.ref.replace('refs/tags/', '');
-  const releaseUrl = context.payload.release?.html_url;
+  const { name: releaseName, url: releaseUrl } = getReleaseReference();
   const header = releaseUrl
     ? `*CSM changelog for <${releaseUrl}|${releaseName}>*`
     : `*CSM changelog for ${releaseName}*`;
