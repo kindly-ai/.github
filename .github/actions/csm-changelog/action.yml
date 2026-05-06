@@ -1,0 +1,24 @@
+name: CSM Changelog
+description: Summarize a merged PR for CSMs and post the changelog message to Slack.
+
+inputs:
+  pr-number:
+    description: Merged pull request number.
+    required: true
+  anthropic-model:
+    description: Anthropic model used to decide and summarize CSM-visible changelog entries.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Summarize merged PR and post CSM changelog to Slack
+      uses: actions/github-script@v8
+      env:
+        ANTHROPIC_MODEL: ${{ inputs.anthropic-model }}
+        CSM_CHANGELOG_SCRIPT: ${{ github.action_path }}/csm-changelog.js
+        PR_NUMBER: ${{ inputs.pr-number }}
+      with:
+        script: |
+          const run = require(process.env.CSM_CHANGELOG_SCRIPT);
+          await run({ github, context, core });

@@ -1,0 +1,39 @@
+name: "(Reusable) CSM Changelog"
+
+on:
+  workflow_call:
+    inputs:
+      pr-number:
+        description: "The merged pull request number to summarize for CSMs."
+        required: true
+        type: number
+      anthropic-model:
+        description: "Anthropic model used to decide and summarize CSM-visible changelog entries."
+        required: false
+        type: string
+        default: "claude-sonnet-4-6"
+    secrets:
+      slack-webhook-url:
+        description: "Incoming Slack webhook URL for the CSM changelog channel."
+        required: true
+      anthropic-api-key:
+        description: "Anthropic API key used to generate CSM changelog summaries."
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  post-csm-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize merged PR and post CSM changelog to Slack
+        uses: kindly-ai/.github/.github/actions/csm-changelog@master
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic-api-key }}
+          SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook-url }}
+        with:
+          pr-number: ${{ inputs.pr-number }}
+          anthropic-model: ${{ inputs.anthropic-model }}
