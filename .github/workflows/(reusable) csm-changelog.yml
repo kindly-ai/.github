@@ -29,18 +29,11 @@ jobs:
   post-csm-changelog:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout reusable workflow repository
-        uses: actions/checkout@v4
-        with:
-          repository: kindly-ai/.github
-          ref: master
-          path: .github-csm-changelog
-
       - name: Summarize merged PR and post CSM changelog to Slack
-        uses: ./.github-csm-changelog/.github/actions/csm-changelog
+        uses: kindly-ai/.github/.github/actions/csm-changelog@master
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic-api-key }}
           SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook-url }}
         with:
-          pr-numbers: '[${{ inputs.pr-number }}]'
+          pr-number: ${{ inputs.pr-number }}
           anthropic-model: ${{ inputs.anthropic-model }}
