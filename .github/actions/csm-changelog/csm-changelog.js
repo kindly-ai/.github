@@ -44,7 +44,7 @@ For skipped PRs:
 }
   `.trim();
   const digestSystemPrompt = `
-You write concise Slack release digests for Customer Success Managers (CSMs) at Kindly.
+You write concise Slack changelog digests for Customer Success Managers (CSMs) at Kindly.
 
 Use the included PR summaries to create one cohesive CSM-facing changelog. Group related items when useful. Keep it short, clear, and customer-outcome focused.
 
@@ -135,10 +135,6 @@ Format for Slack mrkdwn. Include PR links inline where relevant using the provid
   }
 
   function getPrReference(items) {
-    const release = context.payload.release;
-    if (release) {
-      return { name: release.name || context.ref.replace('refs/tags/', ''), url: release.html_url };
-    }
     if (items.length === 1) {
       const { pr } = items[0];
       return { name: `PR #${pr.number}: ${pr.title}`, url: pr.html_url };
@@ -196,6 +192,10 @@ Format for Slack mrkdwn. Include PR links inline where relevant using the provid
       repo: context.repo.repo,
       pull_number: prNumber,
     });
+
+    if (!pr.merged_at) {
+      throw new Error(`PR #${prNumber} has not been merged. The CSM changelog only runs for merged PRs.`);
+    }
 
     if (shouldSkipLocally(pr)) {
       core.info(`Skipping PR #${prNumber}: obvious bot/dependency PR.`);

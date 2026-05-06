@@ -8,7 +8,7 @@ on:
         required: true
         type: number
       anthropic-model:
-        description: "Anthropic model used to decide and summarize CSM-visible release notes."
+        description: "Anthropic model used to decide and summarize CSM-visible changelog entries."
         required: false
         type: string
         default: "claude-sonnet-4-6"
