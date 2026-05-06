@@ -11,9 +11,9 @@ module.exports = async function runCsmChangelog({ github, context, core }) {
   }
 
   const systemPrompt = `
-You write release changelog blurbs for Customer Success Managers (CSMs) at Kindly.
+You write changelog blurbs for Customer Success Managers (CSMs) at Kindly.
 
-Decide whether a released GitHub PR matters to CSMs or customers. Include only changes with likely customer-facing impact:
+Decide whether a merged GitHub PR matters to CSMs or customers. Include only changes with likely customer-facing impact:
 - end-user behavior in the chat widget or bot
 - admin, bot-builder, or workflow UX
 - customer-visible APIs, integrations, Actions, or security/privacy fixes
@@ -134,19 +134,24 @@ Format for Slack mrkdwn. Include PR links inline where relevant using the provid
     ].join('\n');
   }
 
-  function getReleaseReference() {
-    const name = context.payload.release?.name || context.ref.replace('refs/tags/', '');
-    const url = context.payload.release?.html_url;
-
-    return { name, url };
+  function getPrReference(items) {
+    const release = context.payload.release;
+    if (release) {
+      return { name: release.name || context.ref.replace('refs/tags/', ''), url: release.html_url };
+    }
+    if (items.length === 1) {
+      const { pr } = items[0];
+      return { name: `PR #${pr.number}: ${pr.title}`, url: pr.html_url };
+    }
+    return { name: 'recent merged PRs', url: null };
   }
 
   async function composeDigest(items) {
-    const { name: releaseName, url: releaseUrl } = getReleaseReference();
-    const releaseReference = releaseUrl ? `${releaseName} (${releaseUrl})` : releaseName;
+    const { name: prName, url: prUrl } = getPrReference(items);
+    const prReference = prUrl ? `${prName} (${prUrl})` : prName;
     const userMessage = [
       `repo: ${context.repo.owner}/${context.repo.repo}`,
-      `release: ${releaseReference}`,
+      `merged_pr: ${prReference}`,
       'included_prs:',
       ...items.map(item => [
         `- pr: #${item.pr.number}`,
@@ -250,14 +255,14 @@ Format for Slack mrkdwn. Include PR links inline where relevant using the provid
       throw new Error(`Failed to summarize ${failedItems.length} PR(s), and no CSM changelog items were available to post.`);
     }
 
-    core.info('No CSM changelog PRs found in this release.');
+    core.info('No CSM changelog found for this PR.');
     return;
   }
 
-  const { name: releaseName, url: releaseUrl } = getReleaseReference();
-  const header = releaseUrl
-    ? `*CSM changelog for <${releaseUrl}|${releaseName}>*`
-    : `*CSM changelog for ${releaseName}*`;
+  const { name: prName, url: prUrl } = getPrReference(includedItems);
+  const header = prUrl
+    ? `*CSM changelog for <${prUrl}|${prName}>*`
+    : `*CSM changelog for ${prName}*`;
   let digestBody;
 
   try {

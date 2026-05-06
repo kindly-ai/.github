@@ -3,6 +3,10 @@ name: "(Reusable) CSM Changelog"
 on:
   workflow_call:
     inputs:
+      pr-number:
+        description: "The merged pull request number to summarize for CSMs."
+        required: true
+        type: number
       anthropic-model:
         description: "Anthropic model used to decide and summarize CSM-visible release notes."
         required: false
@@ -25,78 +29,18 @@ jobs:
   post-csm-changelog:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get previous release tag
-        id: previous_release
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const currentRelease = context.payload.release;
-            const currentTag = currentRelease?.tag_name;
-
-            if (!currentTag) {
-              core.setFailed('Unable to determine the current release tag from the release event payload.');
-              return;
-            }
-
-            const releases = await github.paginate(github.rest.repos.listReleases, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              per_page: 100
-            });
-
-            const currentReleaseFromList = releases.find(release => release.tag_name === currentTag);
-            const currentPublishedAt = currentRelease?.published_at || currentReleaseFromList?.published_at;
-
-            if (!currentPublishedAt) {
-              core.setFailed(`Unable to determine when release ${currentTag} was published.`);
-              return;
-            }
-
-            const currentPublishedAtTime = new Date(currentPublishedAt).getTime();
-            const previousRelease = releases
-              .filter(release => release.tag_name !== currentTag)
-              .filter(release => !release.draft && !release.prerelease && release.published_at)
-              .filter(release => new Date(release.published_at).getTime() < currentPublishedAtTime)
-              .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())[0];
-
-            if (!previousRelease) {
-              core.info('No previous release found.');
-              return;
-            }
-
-            core.setOutput('tag_name', previousRelease.tag_name);
-            core.setOutput('current_tag_name', currentTag);
-
-      - name: Get PR numbers in release
-        id: pr_numbers
-        if: steps.previous_release.outputs.tag_name
-        env:
-          PREV_TAG: ${{ steps.previous_release.outputs.tag_name }}
-          CURRENT_TAG: ${{ steps.previous_release.outputs.current_tag_name }}
-        run: |
-          pr_numbers=$(git log "$PREV_TAG..$CURRENT_TAG" --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || true)
-          pr_numbers_json=$(printf '%s\n' "$pr_numbers" | jq -scR 'split("\n") | map(select(length > 0)) | map(tonumber) | unique')
-          echo "numbers=${pr_numbers_json}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout reusable workflow repository
-        if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
         uses: actions/checkout@v4
         with:
           repository: kindly-ai/.github
           ref: master
           path: .github-csm-changelog
 
-      - name: Summarize released PRs and post CSM changelog to Slack
-        if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
+      - name: Summarize merged PR and post CSM changelog to Slack
         uses: ./.github-csm-changelog/.github/actions/csm-changelog
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic-api-key }}
           SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook-url }}
         with:
-          pr-numbers: ${{ steps.pr_numbers.outputs.numbers }}
+          pr-numbers: '[${{ inputs.pr-number }}]'
           anthropic-model: ${{ inputs.anthropic-model }}
