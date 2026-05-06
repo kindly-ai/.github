@@ -132,12 +132,23 @@ For skipped PRs:
     );
   }
 
+  function escapeSlackText(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function formatSlackMessage(item) {
+    const prTitle = escapeSlackText(item.pr.title);
+    const headline = escapeSlackText(item.headline);
+    const body = escapeSlackText(item.body);
+
     return [
-      `*CSM changelog for <${item.pr.html_url}|PR #${item.pr.number}: ${item.pr.title}>*`,
+      `*CSM changelog for <${item.pr.html_url}|PR #${item.pr.number}: ${prTitle}>*`,
       '',
-      `*${item.emoji} ${item.headline}*`,
-      item.body,
+      `*${item.emoji} ${headline}*`,
+      body,
     ].join('\n');
   }
 
