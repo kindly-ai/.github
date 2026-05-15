@@ -1,4 +1,5 @@
 # .github
+
 Default templates
 
 ## Reusable workflows
@@ -28,3 +29,27 @@ jobs:
 The `@master` reference intentionally gives callers automatic updates when this reusable workflow changes.
 
 Only the merged PR passed by `pr-number` is considered. The workflow sends the PR's title, body, labels, and changed file names to Anthropic, which decides whether the PR is CSM/customer-visible and writes a short changelog entry. The action also verifies that the PR is merged before posting, so accidental calls for open or closed-unmerged PRs fail.
+
+#### Testing locally
+
+A test script lets you run the action from your machine against a real merged PR without needing to merge a branch first.
+
+**Prerequisites:** `gh` CLI (logged in) and Node.js.
+
+Fill in `.github/actions/csm-changelog/.env`:
+
+```
+PR_NUMBER=
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-4-6
+SLACK_WEBHOOK_URL=
+REPO_OWNER=kindly-ai
+REPO_NAME=kindly
+
+```
+
+Then run from the repo root:
+
+```bash
+node .github/actions/csm-changelog/test-local.js
+```
