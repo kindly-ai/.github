@@ -144,12 +144,22 @@ For skipped PRs:
     const headline = escapeSlackText(item.headline);
     const body = escapeSlackText(item.body);
 
-    return [
-      `*${item.emoji} ${headline}*`,
-      `<${item.pr.html_url}|#${item.pr.number}> • ${repo}`,
-      '',
-      body,
-    ].join('\n');
+    return {
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `*${item.emoji} ${headline}*` },
+        },
+        {
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `<${item.pr.html_url}|#${item.pr.number}> • ${repo}` }],
+        },
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: body },
+        },
+      ],
+    };
   }
 
   async function processPr(prNumber) {
@@ -202,7 +212,7 @@ For skipped PRs:
   const response = await fetch(slackWebhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: formatSlackMessage(item) }),
+    body: JSON.stringify(formatSlackMessage(item)),
   });
 
   if (!response.ok) {
