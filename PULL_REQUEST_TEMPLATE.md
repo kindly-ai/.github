@@ -11,7 +11,7 @@
 
 
 ## ☑ Checklist
-- [ ] I have linked this PR to a Linear Card: fixes .
+- [ ] I have linked this PR to a Linear Card
 - [ ] (_optional_) I plan to write about this PR in #product-updates / Canny / Help Center / Docs / [API Changelog](https://docs.kindly.ai/api/changelog)
 - [ ] (_optional_) I have added prometheus or mixpanel events for this feature.
 - [ ] (_optional_) I have added tests. 
