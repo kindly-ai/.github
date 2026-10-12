@@ -53,3 +53,26 @@ Then run from the repo root:
 ```bash
 node .github/actions/csm-changelog/test-local.js
 ```
+
+### CSM changelog release
+
+When a release is published, this replies "🚀 Released in <repo> vX.Y.Z" in the Slack thread of each CSM changelog post whose PR is part of the release:
+
+```yaml
+name: CSM changelog release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  csm-changelog-release:
+    uses: kindly-ai/.github/.github/workflows/(reusable) csm-changelog-release.yml@master
+    secrets:
+      slack-bot-token: ${{ secrets.SLACK_CHANGELOG_BOT_TOKEN }}
+      slack-channel-id: ${{ secrets.SLACK_CHANGELOG_CHANNEL_ID }}
+```
+
+The released PRs are the `(#123)` references in the commit subjects between the previous published release and this one. The workflow then searches the last 30 days of channel history (`lookback-days`) for posts linking to those PRs, and replies in their threads. PRs that were skipped as not CSM-visible have no post and are ignored. Re-running the workflow does not reply twice.
+
+The bot token must belong to the same Slack app as the CSM changelog webhook, with the `chat:write` and `channels:history` scopes (`groups:history` for a private channel), and the app must be a member of the channel.
