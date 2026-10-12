@@ -56,7 +56,7 @@ node .github/actions/csm-changelog/test-local.js
 
 ### CSM changelog release
 
-When a release is published, this replies "🚀 Released to production in vX.Y.Z" in the Slack thread of each CSM changelog post whose PR is part of the release:
+When a release is published, this replies "🚀 Released in <repo> vX.Y.Z" in the Slack thread of each CSM changelog post whose PR is part of the release:
 
 ```yaml
 name: CSM changelog release

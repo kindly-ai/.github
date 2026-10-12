@@ -129,7 +129,7 @@ module.exports = async function runCsmChangelogRelease({ github, context, core }
     return;
   }
 
-  const text = `:rocket: Released to production in <${release.html_url}|${tagName}>`;
+  const text = `:rocket: Released in <${release.html_url}|${repo} ${tagName}>`;
   for (const [prUrl, threadTs] of threads) {
     if (await alreadyAnnounced(threadTs, release.html_url)) {
       core.info(`Already announced ${tagName} in the thread for ${prUrl}.`);
