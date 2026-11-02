@@ -40,7 +40,7 @@ jobs:
         run: |
           prev_tag=${{ steps.previous_release.outputs.tag_name }}
           current_tag=${{ github.ref_name }}
-          pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | jq -scR 'split("\n") | map(select(length > 0)) | map(tonumber)')
+          pr_numbers_json=$(git log $prev_tag..$current_tag --pretty=%s | grep -oE '\(#[0-9]+\)|^Merge pull request #[0-9]+' | grep -oE '[0-9]+' | jq -scR 'split("\n") | map(select(length > 0)) | map(tonumber) | unique')
           echo "numbers=${pr_numbers_json}" >> $GITHUB_OUTPUT
 
       - name: Label released PRs
@@ -76,7 +76,7 @@ jobs:
               else core.warning(`Failed to label PR #${prNumbers[i]}: ${r.reason.message}`);
             });
 
-      - name: Comment on Linear tickets in synced Slack threads
+      - name: Move released Linear tickets and comment in synced Slack threads
         if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
         uses: actions/github-script@v8
         with:
@@ -85,17 +85,16 @@ jobs:
             const linearApiKey = '${{ secrets.linear-api-key }}';
 
             const TICKET_PATTERN = /(CAN|ENGN|INTEL|ATLAS)-\d+/g;
-            const MERGED_STATE_IDS = [
+            const MERGED_STATE_IDS = new Set([
               'b00c5e2d-f7b0-4134-9181-35169a0ce16b', // "🔀 Merged" state ID from Team Canvas
               '1c81a071-5649-4722-820d-6fb1aa5a05b6', // "🔀 Merged" state ID from Team Intel
               '51f1e757-1321-49fd-822b-8cb0e0703cec', // "🔀 Merged" state ID from Team Engine
               'ca456b3c-223a-4266-b043-3386ea7d89ce', // "🔀 Merged" state ID from Team Atlas
-            ];
-
-            if (!prNumbers || prNumbers.length === 0) {
-              core.info('No PRs found in this release.');
-              return;
-            }
+            ]);
+            // Teams listed here have released issues moved out of Merged; the rest only get the comment.
+            const RELEASED_STATE_BY_MERGED_STATE = {
+              '1c81a071-5649-4722-820d-6fb1aa5a05b6': '2f1f661a-ade3-4acd-b635-1f924a06e658', // Team Intel "Released / Done"
+            };
 
             async function linearQuery(query, variables) {
               const response = await fetch('https://api.linear.app/graphql', {
@@ -113,29 +112,31 @@ jobs:
               return result.data;
             }
 
+            const normalizeUrl = url => url.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase();
+
             const ticketIdentifiers = new Set();
+            const releasedPrUrls = new Set();
 
-            const prPromises = prNumbers.map(prNumber =>
-              github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-              })
+            const prResults = await Promise.allSettled(
+              prNumbers.map(prNumber =>
+                github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                })
+              )
             );
-
-            const prResults = await Promise.allSettled(prPromises);
 
             prResults.forEach((result, index) => {
               if (result.status === 'fulfilled') {
                 const pr = result.value.data;
+                releasedPrUrls.add(normalizeUrl(pr.html_url));
                 const content = `${pr.title} ${pr.body || ''} ${pr.head.ref}`;
-
                 for (const match of content.matchAll(TICKET_PATTERN)) {
                   ticketIdentifiers.add(match[0]);
                 }
               } else {
-                const prNumber = prNumbers[index];
-                core.warning(`Could not fetch PR #${prNumber}. It might have been deleted. Error: ${result.reason.message}`);
+                core.warning(`Could not fetch PR #${prNumbers[index]}. It might have been deleted. Error: ${result.reason.message}`);
               }
             });
 
@@ -146,44 +147,91 @@ jobs:
 
             core.info(`Found tickets: ${Array.from(ticketIdentifiers).join(', ')}`);
 
-            // Get tickets that are in "Merged" state
-            const getIssuesQuery = `
-              query GetIssuesByState($stateIds: [ID!]) {
-                issues(filter: { state: { id: { in: $stateIds } } }) {
-                  nodes {
-                    identifier
-                  }
+            // One lookup per ticket: a state-filtered issues query is paginated and silently stops at its first page.
+            const getIssueQuery = `
+              query GetIssue($id: String!) {
+                issue(id: $id) {
+                  identifier
+                  state { id }
+                  attachments(first: 100) { nodes { url } }
                 }
               }`;
 
-            const issuesResponse = await linearQuery(getIssuesQuery, { stateIds: MERGED_STATE_IDS });
-            const issuesInMergedState = new Set(issuesResponse.issues.nodes.map(issue => issue.identifier));
-            const ticketsToComment = Array.from(ticketIdentifiers).filter(id => issuesInMergedState.has(id));
+            const mergedIssues = [];
+            for (const identifier of ticketIdentifiers) {
+              try {
+                const { issue } = await linearQuery(getIssueQuery, { id: identifier });
+                // Linear can resolve an unknown key to a different issue, so only trust an exact identifier match.
+                if (!issue || issue.identifier !== identifier) {
+                  core.info(`skipped ${identifier} (no such issue)`);
+                } else if (!MERGED_STATE_IDS.has(issue.state.id)) {
+                  core.info(`skipped ${identifier} (not in Merged)`);
+                } else {
+                  const bound = issue.attachments.nodes.some(a => releasedPrUrls.has(normalizeUrl(a.url)));
+                  mergedIssues.push({ identifier, stateId: issue.state.id, bound });
+                }
+              } catch (e) {
+                core.info(`skipped ${identifier} (lookup failed: ${e.message})`);
+              }
+            }
 
-            if (ticketsToComment.length === 0) {
-              core.info('No tickets in "Merged" state to comment on.');
+            if (mergedIssues.length === 0) {
+              core.info('No tickets in "Merged" state to move or comment on.');
               return;
             }
 
-            core.info(`Tickets in "Merged" state to comment on: ${ticketsToComment.join(', ')}`);
+            const updateIssueMutation = `
+              mutation MoveIssue($id: String!, $stateId: String!) {
+                issueUpdate(id: $id, input: { stateId: $stateId }) {
+                  success
+                }
+              }`;
 
-            const commentPromises = ticketsToComment.map(async ticketIdentifier => {
-              const commentQuery = `
-                mutation CreateComment($issueId: String!, $body: String!) {
-                  commentCreate(input: { issueId: $issueId, body: $body, createOnSyncedSlackThread: true }) {
-                    success
-                  }
-                }`;
-              try {
-                await linearQuery(commentQuery, { 
-                  issueId: ticketIdentifier, 
-                  body: "Hey team, this task has been now released to the public 🚀" 
-                });
-                core.info(`Successfully commented on synced Slack thread for ticket ${ticketIdentifier}.`);
-              } catch (e) {
-                // Linear API throws if no synced thread exists when createOnSyncedSlackThread is true
-                core.info(`Skipped commenting on ${ticketIdentifier} (likely no synced Slack thread): ${e.message}`);
+            const failedMoves = [];
+            for (const { identifier, stateId, bound } of mergedIssues) {
+              const releasedStateId = RELEASED_STATE_BY_MERGED_STATE[stateId];
+              if (!releasedStateId) {
+                continue;
               }
-            });
+              // A key merely mentioned in a PR body is not proof the work shipped; the PR must be attached to the issue.
+              if (!bound) {
+                core.info(`skipped ${identifier} (no attachment for a PR in this release)`);
+                continue;
+              }
+              try {
+                const { issueUpdate } = await linearQuery(updateIssueMutation, { id: identifier, stateId: releasedStateId });
+                if (!issueUpdate.success) {
+                  throw new Error('issueUpdate returned success: false');
+                }
+                core.info(`moved ${identifier}`);
+              } catch (e) {
+                failedMoves.push(identifier);
+                core.warning(`failed ${identifier} (${e.message})`);
+              }
+            }
 
-            await Promise.allSettled(commentPromises); 
+            const commentMutation = `
+              mutation CreateComment($issueId: String!, $body: String!) {
+                commentCreate(input: { issueId: $issueId, body: $body, createOnSyncedSlackThread: true }) {
+                  success
+                }
+              }`;
+
+            await Promise.allSettled(
+              mergedIssues.map(async ({ identifier }) => {
+                try {
+                  await linearQuery(commentMutation, {
+                    issueId: identifier,
+                    body: "Hey team, this task has been now released to the public 🚀",
+                  });
+                  core.info(`Successfully commented on synced Slack thread for ticket ${identifier}.`);
+                } catch (e) {
+                  // Linear API throws if no synced thread exists when createOnSyncedSlackThread is true
+                  core.info(`Skipped commenting on ${identifier} (likely no synced Slack thread): ${e.message}`);
+                }
+              })
+            );
+
+            if (failedMoves.length > 0) {
+              core.setFailed(`Could not move ${failedMoves.join(', ')} to their released state.`);
+            }
