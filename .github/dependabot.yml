@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "07:00"
+      timezone: "Europe/Oslo"
+    cooldown:
+      default-days: 7
+    rebase-strategy: "disabled"
+    commit-message:
+      prefix: "⬆️"
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      security-dependencies:
+        applies-to: security-updates
+        patterns: ["*"]
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/csm-changelog"
+    schedule:
+      interval: "monthly"
+      time: "07:00"
+      timezone: "Europe/Oslo"
+    cooldown:
+      default-days: 7
+    rebase-strategy: "disabled"
+    commit-message:
+      prefix: "⬆️"
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      security-dependencies:
+        applies-to: security-updates
+        patterns: ["*"]
