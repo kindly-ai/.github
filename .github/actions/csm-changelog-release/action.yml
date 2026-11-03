@@ -1,0 +1,25 @@
+name: CSM Changelog Release
+description: Reply in each CSM changelog Slack thread when its PR ships in a release.
+
+inputs:
+  release-tag:
+    description: Release tag to announce. Defaults to the tag of the triggering release event.
+    required: false
+    default: ""
+  lookback-days:
+    description: How many days of Slack channel history to search for changelog posts.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Reply in CSM changelog threads
+      uses: actions/github-script@v8
+      env:
+        CSM_CHANGELOG_RELEASE_SCRIPT: ${{ github.action_path }}/csm-changelog-release.js
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        LOOKBACK_DAYS: ${{ inputs.lookback-days }}
+      with:
+        script: |
+          const run = require(process.env.CSM_CHANGELOG_RELEASE_SCRIPT);
+          await run({ github, context, core });

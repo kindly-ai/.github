@@ -1,0 +1,38 @@
+name: "(Reusable) CSM Changelog Release"
+
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        description: "Release tag to announce. Defaults to the tag of the triggering release event."
+        required: false
+        type: string
+        default: ""
+      lookback-days:
+        description: "How many days of Slack channel history to search for changelog posts."
+        required: false
+        type: number
+        default: 30
+    secrets:
+      slack-bot-token:
+        description: "Bot token for the Slack app that posts the CSM changelog. Needs chat:write and channels:history."
+        required: true
+      slack-channel-id:
+        description: "ID of the CSM changelog Slack channel."
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  reply-in-csm-changelog-threads:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reply in CSM changelog threads for released PRs
+        uses: kindly-ai/.github/.github/actions/csm-changelog-release@master
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.slack-bot-token }}
+          SLACK_CHANNEL_ID: ${{ secrets.slack-channel-id }}
+        with:
+          release-tag: ${{ inputs.release-tag }}
+          lookback-days: ${{ inputs.lookback-days }}
