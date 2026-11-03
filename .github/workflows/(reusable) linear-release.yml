@@ -18,7 +18,7 @@ jobs:
 
       - name: Get previous release tag
         id: previous_release
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const releases = await github.rest.repos.listReleases({
@@ -46,7 +46,7 @@ jobs:
       - name: Label released PRs
         if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
         continue-on-error: true
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
@@ -78,7 +78,7 @@ jobs:
 
       - name: Comment on Linear tickets in synced Slack threads
         if: steps.pr_numbers.outputs.numbers && steps.pr_numbers.outputs.numbers != '[]'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumbers = ${{ steps.pr_numbers.outputs.numbers }};
