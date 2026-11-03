@@ -13,7 +13,7 @@ runs:
   using: composite
   steps:
     - name: Summarize merged PR and post CSM changelog to Slack
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       env:
         ANTHROPIC_MODEL: ${{ inputs.anthropic-model }}
         CSM_CHANGELOG_SCRIPT: ${{ github.action_path }}/csm-changelog.js
